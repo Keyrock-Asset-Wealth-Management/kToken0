@@ -737,6 +737,19 @@ contract kTokenUnitTest is Test {
         assertTrue(token.isFrozen(account));
     }
 
+    function test_FrozenAccount_CannotSelfUnfreeze() public {
+        vm.prank(blacklistAdmin);
+        token.freeze(user1);
+        assertTrue(token.isFrozen(user1));
+
+        // Attempt to self-unfreeze via renounceRoles (the old attack vector)
+        vm.prank(user1);
+        token.renounceRoles(1 << 4); // old WALLET_BLACKLISTED_ROLE value
+
+        // Account must still be frozen
+        assertTrue(token.isFrozen(user1));
+    }
+
     function testFuzz_FrozenAccountCannotTransfer(address account, uint256 amount) public {
         vm.assume(account != address(0) && account != owner && account != address(token));
         amount = bound(amount, 1, type(uint96).max);
