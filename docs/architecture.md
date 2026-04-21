@@ -90,11 +90,17 @@ constructor(address _token, address _lzEndpoint)
 #### Initialization
 
 ```solidity
-function initialize(address _delegate) external initializer
+function initialize(address _delegate, address _owner) external initializer
 ```
 
-- Sets the delegate (admin) with ownership rights
-- One-time initialization after deployment
+- `_delegate`: LayerZero delegate — configures send/receive libraries, DVNs,
+  executor options, enforced options, and trusted peers. Can be rotated later
+  via `setDelegate` (owner-gated).
+- `_owner`: Contract owner — holds UUPS upgrade authority and `setDelegate`
+  authority. Separating delegate from owner lets LayerZero infrastructure
+  management and contract upgrades be held by distinct keys.
+- Both addresses must be non-zero; reverts with `ZeroAddress()` otherwise.
+- One-time initialization after deployment.
 
 #### Internal Mechanics
 
@@ -176,6 +182,21 @@ constructor(address lzEndpoint_, kToken0 kToken0_)
 - Sets up LayerZero endpoint connection
 - Inherits token decimals from kToken0
 - Disables initializers for upgrade safety
+
+#### Initialization
+
+```solidity
+function initialize(address _delegate, address _owner) external initializer
+```
+
+- `_delegate`: LayerZero delegate — configures send/receive libraries, DVNs,
+  executor options, enforced options, and trusted peers. Can be rotated later
+  via `setDelegate` (owner-gated).
+- `_owner`: Contract owner — holds UUPS upgrade authority and `setDelegate`
+  authority. Separating delegate from owner lets LayerZero infrastructure
+  management and contract upgrades be held by distinct keys.
+- Both addresses must be non-zero; reverts with `ZeroAddress()` otherwise.
+- One-time initialization after deployment.
 
 #### Core Internal Functions
 
@@ -366,9 +387,13 @@ kToken0 (Chain B)
 #### Mainnet:
 
 ```
-Owner
+Owner (UUPS upgrade + setDelegate authority)
     │
-    └─► kOFTAdapter (initialized with delegate)
+    └─► kOFTAdapter
+            │  initialized with (delegate, owner) — two distinct keys
+            │
+            ├─► LayerZero Delegate (cross-chain messaging config: libs,
+            │   DVNs, executors; rotatable via setDelegate)
             │
             └─► Has approval to transfer kToken from users
 ```
@@ -468,7 +493,8 @@ kOFTAdapter balance =
 ```
 1. kToken already exists (original protocol token)
 2. Deploy kOFTAdapter(kToken address, mainnet LZ endpoint)
-3. Initialize kOFTAdapter with delegate address
+3. Initialize kOFTAdapter with (delegate, owner) — two distinct addresses
+   from deployments/config/<network>.json (roles.delegate, roles.owner)
 4. Users must approve kOFTAdapter to spend kToken
 ```
 
@@ -480,7 +506,8 @@ kOFTAdapter balance =
 
 2. Deploy kOFT(satellite LZ endpoint, kToken0 address)
 
-3. Initialize kOFT with delegate address
+3. Initialize kOFT with (delegate, owner) — two distinct addresses
+   from deployments/config/<network>.json (roles.delegate, roles.owner)
 
 4. Grant MINTER_ROLE to kOFT:
    kToken0.grantMinterRole(kOFT address)

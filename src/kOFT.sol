@@ -42,10 +42,15 @@ contract kOFT is OFTCoreUpgradeable {
     }
 
     /// @notice Initializes the kOFT contract
-    /// @param delegate_ The address with admin rights (owner)
-    function initialize(address delegate_) external initializer {
-        __OFTCore_init(delegate_);
-        __Ownable_init(delegate_);
+    /// @dev Splits LayerZero delegate authority (send/receive libs, DVN,
+    /// executor config) from contract ownership (upgrade authority,
+    /// setDelegate authority) so the two can be held by distinct keys.
+    /// @param _delegate LayerZero delegate — may rotate via setDelegate
+    /// @param _owner Contract owner — controls upgrades and setDelegate
+    function initialize(address _delegate, address _owner) external initializer {
+        if (_delegate == address(0) || _owner == address(0)) revert ZeroAddress();
+        __OFTCore_init(_delegate);
+        __Ownable_init(_owner);
     }
 
     /*//////////////////////////////////////////////////////////////

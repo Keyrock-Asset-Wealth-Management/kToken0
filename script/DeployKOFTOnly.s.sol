@@ -48,7 +48,7 @@ contract DeployKOFTOnly is DeploymentManager {
         // Deploy kOFT
         console2.log("=== Deploying kOFT ===");
         kOFT oftImplementation = new kOFT(config.layerZero.lzEndpoint, token);
-        bytes memory oftData = abi.encodeWithSelector(kOFT.initialize.selector, config.roles.owner);
+        bytes memory oftData = abi.encodeCall(kOFT.initialize, (config.roles.delegate, config.roles.owner));
         address oftProxy = proxyFactory.deployAndCall(address(oftImplementation), oftData);
         koft = kOFT(oftProxy);
         console2.log("kOFT implementation:", address(oftImplementation));
@@ -67,6 +67,7 @@ contract DeployKOFTOnly is DeploymentManager {
         console2.log("kOFT (new):", address(koft));
         console2.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console2.log("LayerZero EID:", config.layerZero.lzEid);
+        console2.log("Delegate:", config.roles.delegate);
         console2.log("Owner:", config.roles.owner);
         console2.log("Architecture: Spoke - kOFT mints/burns via ERC7802");
 

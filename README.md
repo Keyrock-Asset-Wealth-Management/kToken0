@@ -112,10 +112,17 @@ The protocol supports two OFT strategies:
 
 | Role | Permissions | Contracts |
 |------|-------------|-----------|
-| OWNER | Ultimate control, upgrades | All |
-| ADMIN_ROLE | Operational management | All |
+| OWNER | UUPS upgrade authority, `setDelegate` authority | kOFT, kOFTAdapter, kToken0 |
+| LZ_DELEGATE | LayerZero config: libraries, DVNs, executors, enforced options, peers | kOFT, kOFTAdapter |
+| ADMIN_ROLE | Operational management (grant/revoke roles, pause) | kToken0 |
 | MINTER_ROLE | Mint/burn tokens | kToken0 |
 | PAUSER_ROLE | Emergency pause | kToken0 |
+
+`kOFT` and `kOFTAdapter` separate the LayerZero delegate from the contract
+owner. The delegate controls cross-chain messaging infrastructure; the owner
+controls upgrades and delegate rotation. Operators MAY use the same address
+for both (paste into the `delegate` and `owner` fields of the network config),
+but keeping them distinct is recommended for defense in depth.
 
 ### Deployment
 
@@ -130,13 +137,18 @@ forge script script/DeployHub.s.sol --rpc-url $RPC_URL --broadcast --verify --ac
 forge script script/DeploySpoke.s.sol --rpc-url $RPC_URL --broadcast --verify --account myKeystoreName --sender <accountAddress>
 ```
 
-**Required Environment Variables:**
+**Required network config (`deployments/config/<network>.json`):**
 
-- `OWNER`: Contract owner address
-- `ADMIN`: Admin role address  
-- `MINTER`: Minter role address
-- `LZ_ENDPOINT`: LayerZero endpoint address
-- `KTOKEN_CONTRACT`: Deployed kToken0 contract address
+- `roles.owner`: Contract owner — UUPS upgrade authority + `setDelegate`
+- `roles.delegate`: LayerZero delegate — messaging infra config
+- `roles.admin`: Admin role address
+- `roles.emergencyAdmin`: Emergency admin address
+- `layerZero.lzEndpoint`: LayerZero endpoint address
+- `layerZero.lzEid`: LayerZero endpoint ID
+- `existingKToken` (optional): Address of existing kToken contract to reuse
+
+All role addresses must be non-zero; the deploy scripts revert at validation
+if any are missing.
 
 ## Safety
 

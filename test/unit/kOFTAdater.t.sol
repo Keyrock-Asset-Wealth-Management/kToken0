@@ -14,6 +14,7 @@ contract kOFTAdapterTest is Test {
     address public admin = address(0x2);
     address public emergencyAdmin = address(0x3);
     address public user = address(0x4);
+    MinimalUUPSFactory public proxyFactory;
 
     string public constant NAME = "kUSD";
     string public constant SYMBOL = "kUSD";
@@ -25,7 +26,7 @@ contract kOFTAdapterTest is Test {
         vm.etch(lzEndpoint, "mock");
 
         // Deploy proxy factory
-        MinimalUUPSFactory proxyFactory = new MinimalUUPSFactory();
+        proxyFactory = new MinimalUUPSFactory();
 
         // Deploy kToken via proxy (hub deployment pattern)
         kToken tokenImplementation = new kToken();
@@ -38,7 +39,7 @@ contract kOFTAdapterTest is Test {
 
         // Deploy kOFTAdapter
         kOFTAdapter implementation = new kOFTAdapter(address(token), lzEndpoint);
-        bytes memory data = abi.encodeWithSelector(kOFTAdapter.initialize.selector, owner);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (owner, owner));
         address proxy = proxyFactory.deployAndCall(address(implementation), data);
         oftAdapter = kOFTAdapter(proxy);
 
@@ -114,7 +115,7 @@ contract kOFTAdapterTest is Test {
 
     function testCannotReinitialize() public {
         vm.expectRevert();
-        oftAdapter.initialize(owner);
+        oftAdapter.initialize(owner, owner);
     }
 
     function testAdapterHasMinterRole() public view {
@@ -125,5 +126,48 @@ contract kOFTAdapterTest is Test {
         vm.expectRevert();
         vm.prank(user);
         token.crosschainMint(user, 1000e18);
+    }
+
+    /* Delegate / owner split initialization */
+
+    function test_initialize_revertsOnZeroDelegate() public {
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (address(0), address(this)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_revertsOnZeroOwner() public {
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (address(this), address(0)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_succeedsWithDistinctDelegateAndOwner() public {
+        address delegate = makeAddr("delegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFTAdapter freshAdapter = kOFTAdapter(proxy);
+        assertEq(freshAdapter.owner(), ownerAddr);
+    }
+
+    function test_setDelegate_onlyOwnerCanRotate() public {
+        address delegate = makeAddr("delegate");
+        address newDelegate = makeAddr("newDelegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFTAdapter freshAdapter = kOFTAdapter(proxy);
+
+        vm.prank(delegate);
+        vm.expectRevert();
+        freshAdapter.setDelegate(newDelegate);
+
+        vm.prank(ownerAddr);
+        freshAdapter.setDelegate(newDelegate);
     }
 }
