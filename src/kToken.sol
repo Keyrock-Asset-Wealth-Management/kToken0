@@ -12,6 +12,7 @@ import { UUPSUpgradeable } from "./vendor/solady/utils/UUPSUpgradeable.sol";
 import { ERC3009 } from "./base/ERC3009.sol";
 import {
     KTOKEN_ACCOUNT_FROZEN,
+    KTOKEN_CANNOT_FREEZE_OWNER,
     KTOKEN_IS_PAUSED,
     KTOKEN_TRANSFER_FAILED,
     KTOKEN_WRONG_ROLE,
@@ -456,7 +457,7 @@ contract kToken is
     function freeze(address _account) external {
         _checkBlacklistAdmin(msg.sender);
         require(_account != address(0), KTOKEN_ZERO_ADDRESS);
-        require(_account != owner(), KTOKEN_WRONG_ROLE);
+        require(_account != owner(), KTOKEN_CANNOT_FREEZE_OWNER);
         kTokenStorage storage $ = _getkTokenStorage();
         $.frozen[_account] = true;
         emit AccountFrozen(_account, msg.sender);
