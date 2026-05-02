@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import { kOFTAdapter } from "../../src/kOFTAdapter.sol";
 import { kToken } from "../../src/kToken.sol";
+import { KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
+import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { Test } from "forge-std/Test.sol";
 import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
@@ -91,7 +93,7 @@ contract kOFTAdapterTest is Test {
         assertEq(token.balanceOf(user), 1000e18);
 
         // Non-minter should not be able to mint
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user);
         token.crosschainMint(user, 1000e18);
     }
@@ -107,13 +109,13 @@ contract kOFTAdapterTest is Test {
         assertEq(token.balanceOf(user), 500e18);
 
         // Non-minter should not be able to burn
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user);
         token.crosschainBurn(user, 100e18);
     }
 
     function testCannotReinitialize() public {
-        vm.expectRevert();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         oftAdapter.initialize(owner);
     }
 
@@ -122,7 +124,7 @@ contract kOFTAdapterTest is Test {
     }
 
     function testUserCannotDirectlyMint() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user);
         token.crosschainMint(user, 1000e18);
     }
