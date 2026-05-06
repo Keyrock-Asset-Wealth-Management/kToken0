@@ -2,6 +2,17 @@
 pragma solidity ^0.8.20;
 
 import { kToken } from "../../src/kToken.sol";
+import {
+    KTOKEN_ACCOUNT_FROZEN,
+    KTOKEN_IS_PAUSED,
+    KTOKEN_TRANSFER_FAILED,
+    KTOKEN_WRONG_ROLE,
+    KTOKEN_ZERO_ADDRESS,
+    KTOKEN_ZERO_AMOUNT
+} from "../../src/errors/Errors.sol";
+import { Ownable } from "../../src/vendor/solady/auth/Ownable.sol";
+import { ERC20 } from "../../src/vendor/solady/tokens/ERC20.sol";
+import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { Test } from "forge-std/Test.sol";
 import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
@@ -77,7 +88,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_Initialize_CannotReinitialize() public {
-        vm.expectRevert();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         token.initialize(owner, admin, emergencyAdmin, minter, NAME, SYMBOL, DECIMALS);
     }
 
@@ -108,7 +119,7 @@ contract kTokenUnitTest is Test {
     function test_CrosschainMint_RevertsForNonMinter() public {
         uint256 amount = 1000e6;
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.crosschainMint(user1, amount);
     }
@@ -117,7 +128,7 @@ contract kTokenUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(minter);
         token.crosschainMint(user1, 1000e6);
     }
@@ -166,7 +177,7 @@ contract kTokenUnitTest is Test {
         vm.prank(minter);
         token.crosschainMint(user1, 1000e6);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.crosschainBurn(user1, 100e6);
     }
@@ -178,7 +189,7 @@ contract kTokenUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(minter);
         token.crosschainBurn(user1, 100e6);
     }
@@ -187,7 +198,7 @@ contract kTokenUnitTest is Test {
         vm.prank(minter);
         token.crosschainMint(user1, 100e6);
 
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientBalance.selector);
         vm.prank(minter);
         token.crosschainBurn(user1, 200e6);
     }
@@ -206,7 +217,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_Mint_RevertsForNonMinter() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.mint(user1, 1000e6);
     }
@@ -243,7 +254,7 @@ contract kTokenUnitTest is Test {
         vm.prank(user1);
         token.approve(minter, 100e6);
 
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientAllowance.selector);
         vm.prank(minter);
         token.burnFrom(user1, 200e6);
     }
@@ -262,7 +273,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_GrantMinterRole_RevertsForNonAdmin() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.grantMinterRole(user1);
     }
@@ -275,7 +286,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_RevokeMinterRole_RevertsForNonAdmin() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.revokeMinterRole(minter);
     }
@@ -284,7 +295,7 @@ contract kTokenUnitTest is Test {
         vm.prank(admin);
         token.revokeMinterRole(minter);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(minter);
         token.crosschainMint(user1, 1000e6);
     }
@@ -299,7 +310,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_GrantAdminRole_RevertsForNonOwner() public {
-        vm.expectRevert();
+        vm.expectRevert(Ownable.Unauthorized.selector);
         vm.prank(admin);
         token.grantAdminRole(user1);
     }
@@ -333,7 +344,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_SetPaused_RevertsForNonEmergencyAdmin() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.setPaused(true);
     }
@@ -368,7 +379,7 @@ contract kTokenUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(user1);
         token.transfer(user2, 100e6);
     }
@@ -496,7 +507,7 @@ contract kTokenUnitTest is Test {
     function test_EmergencyWithdraw_RevertsForNonEmergencyAdmin() public {
         vm.deal(address(token), 1 ether);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.emergencyWithdraw(address(0), user1, 1 ether);
     }
@@ -590,7 +601,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user1);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(user1);
         token.transfer(user2, 100e6);
     }
@@ -602,7 +613,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user2);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(user1);
         token.transfer(user2, 100e6);
     }
@@ -611,7 +622,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user1);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(minter);
         token.mint(user1, 1000e6);
     }
@@ -623,25 +634,26 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user1);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(minter);
         token.burn(user1, 500e6);
     }
 
     function test_FreezeAccount_RevertsForNonAdmin() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.freeze(user2);
     }
 
     function test_CannotFreezeZeroAddress() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
         vm.prank(blacklistAdmin);
         token.freeze(address(0));
     }
 
     function test_CannotFreezeOwner() public {
-        vm.expectRevert();
+        // freeze() rejects owner with KTOKEN_WRONG_ROLE — owner cannot be blacklisted.
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(blacklistAdmin);
         token.freeze(owner);
     }
@@ -650,7 +662,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user1);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(minter);
         token.crosschainMint(user1, 1000e6);
     }
@@ -662,7 +674,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user1);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(minter);
         token.crosschainBurn(user1, 500e6);
     }
@@ -677,7 +689,7 @@ contract kTokenUnitTest is Test {
     }
 
     function test_GrantBlacklistAdminRole_RevertsForNonAdmin() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.grantBlacklistAdminRole(user1);
     }
@@ -693,7 +705,7 @@ contract kTokenUnitTest is Test {
         vm.prank(admin);
         token.revokeBlacklistAdminRole(blacklistAdmin);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(blacklistAdmin);
         token.freeze(user1);
     }
@@ -708,7 +720,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user1);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(user2);
         token.transferFrom(user1, user2, 100e6);
     }
@@ -723,7 +735,7 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(user2);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(user2);
         token.transferFrom(user1, user2, 100e6);
     }
@@ -747,10 +759,174 @@ contract kTokenUnitTest is Test {
         vm.prank(blacklistAdmin);
         token.freeze(account);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_ACCOUNT_FROZEN));
         vm.prank(account);
         token.transfer(user2, 1);
     }
+
+    // ============================================
+    // ROLE REVOCATION TESTS (revokeAdminRole, revokeEmergencyRole)
+    // ============================================
+
+    function test_RevokeAdminRole_Success() public {
+        vm.prank(owner);
+        token.revokeAdminRole(admin);
+
+        assertFalse(token.hasAnyRole(admin, token.ADMIN_ROLE()));
+    }
+
+    function test_RevokeAdminRole_RevertsForNonOwner() public {
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.prank(admin);
+        token.revokeAdminRole(admin);
+    }
+
+    function test_RevokedAdmin_CannotGrantMinterRole() public {
+        vm.prank(owner);
+        token.revokeAdminRole(admin);
+
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
+        vm.prank(admin);
+        token.grantMinterRole(user1);
+    }
+
+    function test_GrantEmergencyRole_RevertsForNonAdmin() public {
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
+        vm.prank(user1);
+        token.grantEmergencyRole(user1);
+    }
+
+    function test_RevokeEmergencyRole_Success() public {
+        vm.prank(admin);
+        token.revokeEmergencyRole(emergencyAdmin);
+
+        assertFalse(token.hasAnyRole(emergencyAdmin, token.EMERGENCY_ADMIN_ROLE()));
+    }
+
+    function test_RevokeEmergencyRole_RevertsForNonAdmin() public {
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
+        vm.prank(user1);
+        token.revokeEmergencyRole(emergencyAdmin);
+    }
+
+    function test_RevokedEmergencyAdmin_CannotPause() public {
+        vm.prank(admin);
+        token.revokeEmergencyRole(emergencyAdmin);
+
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
+        vm.prank(emergencyAdmin);
+        token.setPaused(true);
+    }
+
+    // ============================================
+    // EMERGENCY WITHDRAW INPUT VALIDATION
+    // ============================================
+
+    function test_EmergencyWithdraw_RevertsForZeroDestination() public {
+        vm.deal(address(token), 1 ether);
+
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
+        vm.prank(emergencyAdmin);
+        token.emergencyWithdraw(address(0), address(0), 1 ether);
+    }
+
+    function test_EmergencyWithdraw_RevertsForZeroAmount() public {
+        vm.deal(address(token), 1 ether);
+
+        vm.expectRevert(bytes(KTOKEN_ZERO_AMOUNT));
+        vm.prank(emergencyAdmin);
+        token.emergencyWithdraw(address(0), user1, 0);
+    }
+
+    function test_EmergencyWithdraw_RevertsWhenETHTransferFails() public {
+        // Deploy a contract with no payable receive — sending ETH to it triggers
+        // the KTOKEN_TRANSFER_FAILED branch.
+        ETHRejector rejector = new ETHRejector();
+        vm.deal(address(token), 1 ether);
+
+        vm.expectRevert(bytes(KTOKEN_TRANSFER_FAILED));
+        vm.prank(emergencyAdmin);
+        token.emergencyWithdraw(address(0), address(rejector), 1 ether);
+    }
+
+    // ============================================
+    // INITIALIZE ZERO ADDRESS CHECKS
+    // ============================================
+
+    function test_Initialize_RevertsForZeroOwner() public {
+        MinimalUUPSFactory f = new MinimalUUPSFactory();
+        kToken impl = new kToken();
+        bytes memory initData = abi.encodeCall(
+            kToken.initialize, (address(0), admin, emergencyAdmin, minter, NAME, SYMBOL, DECIMALS)
+        );
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
+        f.deployAndCall(address(impl), initData);
+    }
+
+    function test_Initialize_RevertsForZeroAdmin() public {
+        MinimalUUPSFactory f = new MinimalUUPSFactory();
+        kToken impl = new kToken();
+        bytes memory initData = abi.encodeCall(
+            kToken.initialize, (owner, address(0), emergencyAdmin, minter, NAME, SYMBOL, DECIMALS)
+        );
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
+        f.deployAndCall(address(impl), initData);
+    }
+
+    function test_Initialize_RevertsForZeroEmergencyAdmin() public {
+        MinimalUUPSFactory f = new MinimalUUPSFactory();
+        kToken impl = new kToken();
+        bytes memory initData = abi.encodeCall(
+            kToken.initialize, (owner, admin, address(0), minter, NAME, SYMBOL, DECIMALS)
+        );
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
+        f.deployAndCall(address(impl), initData);
+    }
+
+    function test_Initialize_RevertsForZeroMinter() public {
+        MinimalUUPSFactory f = new MinimalUUPSFactory();
+        kToken impl = new kToken();
+        bytes memory initData = abi.encodeCall(
+            kToken.initialize, (owner, admin, emergencyAdmin, address(0), NAME, SYMBOL, DECIMALS)
+        );
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
+        f.deployAndCall(address(impl), initData);
+    }
+
+    // ============================================
+    // UUPS UPGRADE AUTHORIZATION
+    // ============================================
+
+    function test_AuthorizeUpgrade_Success() public {
+        kToken newImpl = new kToken();
+
+        vm.prank(owner);
+        token.upgradeToAndCall(address(newImpl), "");
+
+        // Read ERC-1967 implementation slot to verify upgrade landed.
+        bytes32 implSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        address current = address(uint160(uint256(vm.load(address(token), implSlot))));
+        assertEq(current, address(newImpl));
+    }
+
+    function test_AuthorizeUpgrade_RevertsForNonOwner() public {
+        kToken newImpl = new kToken();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.prank(admin);
+        token.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_AuthorizeUpgrade_RevertsForZeroImplementation() public {
+        vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
+        vm.prank(owner);
+        token.upgradeToAndCall(address(0), "");
+    }
+}
+
+// Helper that rejects ETH — used to exercise emergencyWithdraw failure branch.
+contract ETHRejector {
+    // No receive/fallback — any value-bearing call reverts.
 }
 
 // Minimal interfaces for testing
