@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { KTOKEN_IS_PAUSED, KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
 import { kOFT } from "../../src/kOFT.sol";
 import { kToken } from "../../src/kToken.sol";
+import { Ownable } from "../../src/vendor/solady/auth/Ownable.sol";
+import { ERC20 } from "../../src/vendor/solady/tokens/ERC20.sol";
+import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import { Test } from "forge-std/Test.sol";
 import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
@@ -69,18 +73,24 @@ contract kOFTUnitTest is Test {
     }
 
     function test_Initialize_CannotReinitialize() public {
-        vm.expectRevert();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         oft.initialize(owner, owner);
     }
 
     function test_Constructor_RevertsForZeroEndpoint() public {
-        vm.expectRevert();
+        // kOFT constructor checks `lzEndpoint_ == address(0)` after the parent constructor
+        // (which reads kToken_.decimals()) succeeds, and reverts with the contract-defined
+        // ZeroAddress() selector.
+        vm.expectRevert(kOFT.ZeroAddress.selector);
         new kOFT(address(0), token);
     }
 
     function test_Constructor_RevertsForZeroToken() public {
+        // kToken_ == address(0) makes `kToken_.decimals()` (in the parent constructor's
+        // initializer list) call into a non-contract address. Solidity reverts the call
+        // with empty data because the returned uint8 cannot be decoded.
         kToken zeroToken = kToken(address(0));
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         new kOFT(lzEndpoint, zeroToken);
     }
 
@@ -121,7 +131,7 @@ contract kOFTUnitTest is Test {
     }
 
     function test_Debit_RevertsForInsufficientBalance() public {
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientBalance.selector);
         vm.prank(address(oft));
         token.crosschainBurn(user1, 1000e6);
     }
@@ -217,7 +227,9 @@ contract kOFTUnitTest is Test {
         uint32 dstEid = 110;
         bytes32 peer = bytes32(uint256(uint160(address(0x9999))));
 
-        vm.expectRevert();
+        // kOFT inherits OFTCoreUpgradeable -> OZ's OwnableUpgradeable, whose error is
+        // OwnableUnauthorizedAccount(address) (different from Solady's Unauthorized()).
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user1));
         vm.prank(user1);
         oft.setPeer(dstEid, peer);
     }
@@ -266,7 +278,7 @@ contract kOFTUnitTest is Test {
     }
 
     function test_NonOFT_CannotMint() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.crosschainMint(user1, 1000e6);
     }
@@ -275,7 +287,7 @@ contract kOFTUnitTest is Test {
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.crosschainBurn(user1, 500e6);
     }
@@ -288,7 +300,7 @@ contract kOFTUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
     }
@@ -300,7 +312,7 @@ contract kOFTUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(address(oft));
         token.crosschainBurn(user1, 500e6);
     }
@@ -406,7 +418,7 @@ contract kOFTUnitTest is Test {
         vm.prank(admin);
         token.revokeMinterRole(address(oft));
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
     }
@@ -418,7 +430,7 @@ contract kOFTUnitTest is Test {
         vm.prank(admin);
         token.revokeMinterRole(address(oft));
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(address(oft));
         token.crosschainBurn(user1, 500e6);
     }
