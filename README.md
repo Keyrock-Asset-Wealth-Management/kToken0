@@ -87,10 +87,8 @@ This will open the documentation at http://localhost:4000
 
 kToken enables seamless cross-chain token transfers using LayerZero's OFT standard:
 
-- **kOFT.mint()** - Mints tokens on destination chain after cross-chain transfer
-- **kOFT.burn()** - Burns tokens on source chain to initiate cross-chain transfer
-- **kOFTAdapter.lock()** - Locks tokens for cross-chain transfer (adapter pattern)
-- **kOFTAdapter.release()** - Releases locked tokens on destination chain
+- **kOFT** - Mints (`_credit`) and burns (`_debit`) tokens for native cross-chain transfers
+- **kOFTAdapter** - Locks (`_debit`) and releases (`_credit`) tokens for cross-chain transfers of existing tokens
 
 ### Native vs Adapter Patterns
 
@@ -112,11 +110,12 @@ The protocol supports two OFT strategies:
 
 | Role | Permissions | Contracts |
 |------|-------------|-----------|
-| OWNER | UUPS upgrade authority, `setDelegate` authority | kOFT, kOFTAdapter, kToken0 |
+| OWNER | UUPS upgrade authority, `setDelegate` authority | kOFT, kOFTAdapter, kToken |
 | LZ_DELEGATE | LayerZero config: libraries, DVNs, executors, enforced options, peers | kOFT, kOFTAdapter |
-| ADMIN_ROLE | Operational management (grant/revoke roles, pause) | kToken0 |
-| MINTER_ROLE | Mint/burn tokens | kToken0 |
-| PAUSER_ROLE | Emergency pause | kToken0 |
+| ADMIN_ROLE | Operational management (grant/revoke roles) | kToken |
+| MINTER_ROLE | Mint/burn tokens | kToken |
+| EMERGENCY_ADMIN_ROLE | Emergency pause and withdraw | kToken |
+| BLACKLIST_ADMIN_ROLE | Freeze/unfreeze accounts | kToken |
 
 `kOFT` and `kOFTAdapter` separate the LayerZero delegate from the contract
 owner. The delegate controls cross-chain messaging infrastructure; the owner
