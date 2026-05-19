@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.34;
 
 /// @notice Safe ETH and ERC20 transfer library that gracefully handles missing return values.
 /// @author Solady (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
@@ -9,9 +9,9 @@ pragma solidity 0.8.30;
 /// @dev Note:
 /// - For ETH transfers, please use `forceSafeTransferETH` for DoS protection.
 library SafeTransferLib {
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                       CUSTOM ERRORS                        */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    /* ´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /* CUSTOM ERRORS */
+    /* .•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev The ETH transfer has failed.
     error ETHTransferFailed();
@@ -40,9 +40,9 @@ library SafeTransferLib {
     /// @dev The Permit2 lockdown operation has failed.
     error Permit2LockdownFailed();
 
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                         CONSTANTS                          */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    /* ´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /* CONSTANTS */
+    /* .•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev Suggested gas stipend for contract receiving ETH that disallows any storage writes.
     uint256 internal constant GAS_STIPEND_NO_STORAGE_WRITES = 2300;
@@ -62,9 +62,9 @@ library SafeTransferLib {
     /// [Etherscan](https://etherscan.io/address/0x000000000022D473030F116dDEE9F6B43aC78BA3)
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                       ETH OPERATIONS                       */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    /* ´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /* ETH OPERATIONS */
+    /* .•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     // If the ETH transfer MUST succeed with a reasonable gas budget, use the force variants.
     //
@@ -75,10 +75,10 @@ library SafeTransferLib {
     //
     // The force variants:
     // - Forwards with an optional gas stipend
-    //   (defaults to `GAS_STIPEND_NO_GRIEF`, which is sufficient for most cases).
+    // (defaults to `GAS_STIPEND_NO_GRIEF`, which is sufficient for most cases).
     // - If the target reverts, or if the gas stipend is exhausted,
-    //   creates a temporary contract to force send the ETH via `SELFDESTRUCT`.
-    //   Future compatible with `SENDALL`: https://eips.ethereum.org/EIPS/eip-4758.
+    // creates a temporary contract to force send the ETH via `SELFDESTRUCT`.
+    // Future compatible with `SENDALL`: https://eips.ethereum.org/EIPS/eip-4758.
     // - Reverts if the current contract has insufficient balance.
     //
     // The try variants:
@@ -159,6 +159,7 @@ library SafeTransferLib {
     function forceSafeTransferAllETH(address to) internal {
         /// @solidity memory-safe-assembly
         assembly {
+
             // forgefmt: disable-next-item
             if iszero(call(GAS_STIPEND_NO_GRIEF, to, selfbalance(), codesize(), 0x00, codesize(), 0x00)) {
                 mstore(0x00, to) // Store the address in scratch space.
@@ -185,9 +186,9 @@ library SafeTransferLib {
         }
     }
 
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                      ERC20 OPERATIONS                      */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    /* ´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /* ERC20 OPERATIONS */
+    /* .•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev Sends `amount` of ERC20 `token` from `from` to `to`.
     /// Reverts upon failure.
