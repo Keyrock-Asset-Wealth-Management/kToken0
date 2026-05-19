@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import { KTOKEN_IS_PAUSED, KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
 import { kOFT } from "../../src/kOFT.sol";
 import { kToken } from "../../src/kToken.sol";
-import { Ownable } from "../../src/vendor/solady/auth/Ownable.sol";
 import { ERC20 } from "../../src/vendor/solady/tokens/ERC20.sol";
 import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";

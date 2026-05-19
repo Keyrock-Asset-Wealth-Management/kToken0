@@ -935,10 +935,8 @@ contract kTokenUnitTest is Test {
 }
 
 // Helper that rejects ETH — used to exercise emergencyWithdraw failure branch.
-contract ETHRejector {
-    // No receive/fallback — any value-bearing call reverts.
-
-    }
+// No receive/fallback — any value-bearing call reverts.
+contract ETHRejector { }
 
 // Minimal interfaces for testing
 interface IERC7802 {
