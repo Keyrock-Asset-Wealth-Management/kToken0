@@ -11,12 +11,12 @@ This document defines the scope for the security audit of the kOFT cross-chain t
 
 ## In-Scope Contracts
 
-### 1. kToken0.sol
+### 1. kToken.sol
 
 - **Lines of Code:** 35
 - **Purpose:** Cross-chain enabled ERC-20 token for satellite chains
 - **Inheritance:** `kToken`, `IERC7802`, `IERC165`
-- **File Location:** `contracts/kToken0.sol`
+- **File Location:** `contracts/kToken.sol`
 
 ### 2. kOFT.sol
 
@@ -42,7 +42,7 @@ This document defines the scope for the security audit of the kOFT cross-chain t
 
 - **Status:** Will be audited on the KAM repo.
 - **Reason for Exclusion:** Base token contract already security reviewed
-- **Note:** kToken0 inherits from kToken, but only the new cross-chain functionality in kToken0 is in scope
+- **Note:** kToken inherits from kToken, but only the new cross-chain functionality in kToken is in scope
 
 ### LayerZero Dependencies
 
@@ -84,7 +84,7 @@ The kOFT system uses a **hybrid architecture**:
    - Pattern: Lock-and-release
 
 2. **Satellite Chains (Arbitrum, Optimism, etc.):**
-   - `kToken0` with native cross-chain functions - **IN SCOPE**
+   - `kToken` with native cross-chain functions - **IN SCOPE**
    - `kOFT` handles burn-and-mint operations - **IN SCOPE**
    - Pattern: Burn-and-mint
 
@@ -94,22 +94,22 @@ The kOFT system uses a **hybrid architecture**:
 1. Mainnet → Satellite:
    User → kToken.approve() → kOFTAdapter.send() 
    → Lock tokens → LayerZero → kOFT.lzReceive() 
-   → kToken0.crosschainMint()
+   → kToken.crosschainMint()
 
 2. Satellite → Mainnet:
-   User → kOFT.send() → kToken0.crosschainBurn() 
+   User → kOFT.send() → kToken.crosschainBurn() 
    → LayerZero → kOFTAdapter.lzReceive() 
    → Release locked tokens
 
 3. Satellite ↔ Satellite:
-   User → kOFT_A.send() → kToken0_A.crosschainBurn() 
+   User → kOFT_A.send() → kToken_A.crosschainBurn() 
    → LayerZero → kOFT_B.lzReceive() 
-   → kToken0_B.crosschainMint()
+   → kToken_B.crosschainMint()
 ```
 
 ## Specific Functions to Audit
 
-### kToken0.sol
+### kToken.sol
 
 #### Critical Functions
 
@@ -132,7 +132,7 @@ The kOFT system uses a **hybrid architecture**:
 #### Critical Functions
 
 ```solidity
-✓ constructor(address lzEndpoint_, kToken0 kToken0_)
+✓ constructor(address lzEndpoint_, kToken token0_)
 ✓ initialize(address delegate_)
 ✓ _debit(address _from, uint256 _amountLD, uint256 _minAmountLD, uint32 _dstEid)
 ✓ _credit(address _to, uint256 _amountLD, uint32 _srcEid)
@@ -152,7 +152,7 @@ The kOFT system uses a **hybrid architecture**:
 - Mint on receive in `_credit()`
 - Zero address handling in `_credit()`
 - Amount calculations (sent vs received)
-- Integration with kToken0's crosschain functions
+- Integration with kToken's crosschain functions
 
 ---
 
@@ -195,7 +195,7 @@ The kOFT system uses a **hybrid architecture**:
 
 This audit focuses on three critical contracts that enable cross-chain functionality for kToken:
 
-1. **kToken0** - Cross-chain enabled token on satellites
+1. **kToken** - Cross-chain enabled token on satellites
 2. **kOFT** - Burn-and-mint OFT implementation
 3. **kOFTAdapter** - Lock-and-release adapter for mainnet
 

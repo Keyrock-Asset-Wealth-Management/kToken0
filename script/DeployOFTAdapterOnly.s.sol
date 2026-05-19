@@ -45,7 +45,7 @@ contract DeployOFTAdapterOnly is DeploymentManager {
         // Deploy kOFTAdapter
         console2.log("=== Deploying kOFTAdapter ===");
         kOFTAdapter adapterImplementation = new kOFTAdapter(address(token), config.layerZero.lzEndpoint);
-        bytes memory adapterData = abi.encodeWithSelector(kOFTAdapter.initialize.selector, config.roles.owner);
+        bytes memory adapterData = abi.encodeCall(kOFTAdapter.initialize, (config.roles.delegate, config.roles.owner));
         ERC1967Proxy adapterProxy = new ERC1967Proxy(address(adapterImplementation), adapterData);
         adapter = kOFTAdapter(address(adapterProxy));
         console2.log("kOFTAdapter implementation:", address(adapterImplementation));
@@ -64,6 +64,7 @@ contract DeployOFTAdapterOnly is DeploymentManager {
         console2.log("kOFTAdapter (new):", address(adapter));
         console2.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console2.log("LayerZero EID:", config.layerZero.lzEid);
+        console2.log("Delegate:", config.roles.delegate);
         console2.log("Owner:", config.roles.owner);
         console2.log("Architecture: Hub - kToken locked/released (total supply preserved)");
 

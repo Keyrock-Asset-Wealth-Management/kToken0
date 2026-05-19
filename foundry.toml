@@ -89,6 +89,7 @@ forge-std = "1.9.7"
 "@layerzerolabs-oft-evm" = "3.1.4"
 gnsps-solidity-bytes-utils = "0.8.4"
 "@layerzerolabs-lz-evm-messagelib-v2" = "3.0.102"
+minimal-uups-factory = { version = "1.0", git = "https://github.com/turingcapitalgroup/minimal-uups-factory.git", rev = "568d85a0921f5b0bc7c410d99363cebdd0cd2ee5" }
 
 [soldeer]
 # whether soldeer manages remappings

@@ -67,3 +67,9 @@ version = "0.8.4"
 url = "https://soldeer-revisions.s3.amazonaws.com/gnsps-solidity-bytes-utils/0_8_4_24-05-2025_07:49:51_gnsps-solidity-bytes-utils-0.8.zip"
 checksum = "6ea735f8169866fc99a3f4caf6ac17b910caed3b521713c75fc4c3c2b3db5bec"
 integrity = "6172bc8002602c9cca3e14416d2f4e158ea76021101c45ee414e6524e9e4f445"
+
+[[dependencies]]
+name = "minimal-uups-factory"
+version = "1.0"
+git = "https://github.com/turingcapitalgroup/minimal-uups-factory.git"
+rev = "f484679b34fc4ffe4f394bb3b9417e81d462fa8c"

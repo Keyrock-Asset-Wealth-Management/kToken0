@@ -5,8 +5,8 @@ import { kOFTAdapter } from "../src/kOFTAdapter.sol";
 import { kToken } from "../src/kToken.sol";
 
 import { DeploymentManager } from "./DeploymentManager.s.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { console2 } from "forge-std/Script.sol";
+import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
 /// @title DeployHub
 /// @notice Deploys kToken + kOFTAdapter for hub (mainnet) deployment
@@ -43,6 +43,9 @@ contract DeployHub is DeploymentManager {
 
         vm.startBroadcast();
 
+        // Deploy proxy factory
+        MinimalUUPSFactory proxyFactory = new MinimalUUPSFactory();
+
         // Check if we should use existing kToken or deploy new one
         if (config.existingKToken != address(0)) {
             // Use existing kToken (e.g., deployed via KAM's kRegistry)
@@ -65,8 +68,8 @@ contract DeployHub is DeploymentManager {
                     decimals
                 )
             );
-            ERC1967Proxy tokenProxy = new ERC1967Proxy(address(tokenImplementation), tokenInitData);
-            token = kToken(address(tokenProxy));
+            address tokenProxy = proxyFactory.deployAndCall(address(tokenImplementation), tokenInitData);
+            token = kToken(tokenProxy);
             console2.log("kToken implementation:", address(tokenImplementation));
             console2.log("kToken proxy deployed at:", address(token));
 
@@ -77,9 +80,9 @@ contract DeployHub is DeploymentManager {
         // Deploy kOFTAdapter (Hub uses lock/release for total supply control)
         console2.log("=== Deploying kOFTAdapter (Hub) ===");
         kOFTAdapter adapterImplementation = new kOFTAdapter(address(token), config.layerZero.lzEndpoint);
-        bytes memory adapterData = abi.encodeWithSelector(kOFTAdapter.initialize.selector, config.roles.owner);
-        ERC1967Proxy adapterProxy = new ERC1967Proxy(address(adapterImplementation), adapterData);
-        adapter = kOFTAdapter(address(adapterProxy));
+        bytes memory adapterData = abi.encodeCall(kOFTAdapter.initialize, (config.roles.delegate, config.roles.owner));
+        address adapterProxy = proxyFactory.deployAndCall(address(adapterImplementation), adapterData);
+        adapter = kOFTAdapter(adapterProxy);
         console2.log("kOFTAdapter implementation:", address(adapterImplementation));
         console2.log("kOFTAdapter proxy deployed at:", address(adapter));
 
@@ -113,6 +116,7 @@ contract DeployHub is DeploymentManager {
         console2.log("kOFTAdapter:", address(adapter));
         console2.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console2.log("LayerZero EID:", config.layerZero.lzEid);
+        console2.log("Delegate:", config.roles.delegate);
         console2.log("Owner:", config.roles.owner);
         console2.log("Architecture: Hub - kToken locked/released via kOFTAdapter (total supply preserved)");
 

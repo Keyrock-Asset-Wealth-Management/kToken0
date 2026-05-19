@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
 import { kOFTAdapter } from "../../src/kOFTAdapter.sol";
 import { kToken } from "../../src/kToken.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { Test } from "forge-std/Test.sol";
+import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
 contract kOFTAdapterTest is Test {
     kToken public token;
@@ -14,6 +16,7 @@ contract kOFTAdapterTest is Test {
     address public admin = address(0x2);
     address public emergencyAdmin = address(0x3);
     address public user = address(0x4);
+    MinimalUUPSFactory public proxyFactory;
 
     string public constant NAME = "kUSD";
     string public constant SYMBOL = "kUSD";
@@ -24,20 +27,23 @@ contract kOFTAdapterTest is Test {
         lzEndpoint = address(0x1337);
         vm.etch(lzEndpoint, "mock");
 
+        // Deploy proxy factory
+        proxyFactory = new MinimalUUPSFactory();
+
         // Deploy kToken via proxy (hub deployment pattern)
         kToken tokenImplementation = new kToken();
         bytes memory tokenInitData = abi.encodeCall(
             kToken.initialize,
             (owner, admin, emergencyAdmin, address(this), NAME, SYMBOL, DECIMALS) // temporary minter
         );
-        ERC1967Proxy tokenProxy = new ERC1967Proxy(address(tokenImplementation), tokenInitData);
-        token = kToken(address(tokenProxy));
+        address tokenProxy = proxyFactory.deployAndCall(address(tokenImplementation), tokenInitData);
+        token = kToken(tokenProxy);
 
         // Deploy kOFTAdapter
         kOFTAdapter implementation = new kOFTAdapter(address(token), lzEndpoint);
-        bytes memory data = abi.encodeWithSelector(kOFTAdapter.initialize.selector, owner);
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        oftAdapter = kOFTAdapter(address(proxy));
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (owner, owner));
+        address proxy = proxyFactory.deployAndCall(address(implementation), data);
+        oftAdapter = kOFTAdapter(proxy);
 
         // Grant adapter minter role
         vm.prank(admin);
@@ -88,7 +94,7 @@ contract kOFTAdapterTest is Test {
         assertEq(token.balanceOf(user), 1000e18);
 
         // Non-minter should not be able to mint
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user);
         token.crosschainMint(user, 1000e18);
     }
@@ -104,14 +110,14 @@ contract kOFTAdapterTest is Test {
         assertEq(token.balanceOf(user), 500e18);
 
         // Non-minter should not be able to burn
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user);
         token.crosschainBurn(user, 100e18);
     }
 
     function testCannotReinitialize() public {
-        vm.expectRevert();
-        oftAdapter.initialize(owner);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        oftAdapter.initialize(owner, owner);
     }
 
     function testAdapterHasMinterRole() public view {
@@ -119,8 +125,51 @@ contract kOFTAdapterTest is Test {
     }
 
     function testUserCannotDirectlyMint() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user);
         token.crosschainMint(user, 1000e18);
+    }
+
+    /* Delegate / owner split initialization */
+
+    function test_initialize_revertsOnZeroDelegate() public {
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (address(0), address(this)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_revertsOnZeroOwner() public {
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (address(this), address(0)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_succeedsWithDistinctDelegateAndOwner() public {
+        address delegate = makeAddr("delegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFTAdapter freshAdapter = kOFTAdapter(proxy);
+        assertEq(freshAdapter.owner(), ownerAddr);
+    }
+
+    function test_setDelegate_onlyOwnerCanRotate() public {
+        address delegate = makeAddr("delegate");
+        address newDelegate = makeAddr("newDelegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFTAdapter impl = new kOFTAdapter(address(token), lzEndpoint);
+        bytes memory data = abi.encodeCall(kOFTAdapter.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFTAdapter freshAdapter = kOFTAdapter(proxy);
+
+        vm.prank(delegate);
+        vm.expectRevert();
+        freshAdapter.setDelegate(newDelegate);
+
+        vm.prank(ownerAddr);
+        freshAdapter.setDelegate(newDelegate);
     }
 }

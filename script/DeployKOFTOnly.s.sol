@@ -5,8 +5,8 @@ import { kOFT } from "../src/kOFT.sol";
 import { kToken } from "../src/kToken.sol";
 
 import { DeploymentManager } from "./DeploymentManager.s.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { console2 } from "forge-std/Script.sol";
+import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
 /// @title DeployKOFTOnly
 /// @notice Deploys kOFT for an existing kToken on spoke chains
@@ -42,12 +42,15 @@ contract DeployKOFTOnly is DeploymentManager {
 
         vm.startBroadcast();
 
+        // Deploy proxy factory
+        MinimalUUPSFactory proxyFactory = new MinimalUUPSFactory();
+
         // Deploy kOFT
         console2.log("=== Deploying kOFT ===");
         kOFT oftImplementation = new kOFT(config.layerZero.lzEndpoint, token);
-        bytes memory oftData = abi.encodeWithSelector(kOFT.initialize.selector, config.roles.owner);
-        ERC1967Proxy oftProxy = new ERC1967Proxy(address(oftImplementation), oftData);
-        koft = kOFT(address(oftProxy));
+        bytes memory oftData = abi.encodeCall(kOFT.initialize, (config.roles.delegate, config.roles.owner));
+        address oftProxy = proxyFactory.deployAndCall(address(oftImplementation), oftData);
+        koft = kOFT(oftProxy);
         console2.log("kOFT implementation:", address(oftImplementation));
         console2.log("kOFT proxy deployed at:", address(koft));
 
@@ -64,6 +67,7 @@ contract DeployKOFTOnly is DeploymentManager {
         console2.log("kOFT (new):", address(koft));
         console2.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console2.log("LayerZero EID:", config.layerZero.lzEid);
+        console2.log("Delegate:", config.roles.delegate);
         console2.log("Owner:", config.roles.owner);
         console2.log("Architecture: Spoke - kOFT mints/burns via ERC7802");
 

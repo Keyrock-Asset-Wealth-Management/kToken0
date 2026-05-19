@@ -61,9 +61,24 @@ abstract contract ERC3009 {
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Tracks which authorizations have been used.
-    /// Maps: authorizer => nonce => used
-    mapping(address => mapping(bytes32 => bool)) internal _authorizationStates;
+    /// @notice Storage struct for ERC3009 using ERC-7201 namespaced storage pattern
+    /// @dev Prevents storage collisions in upgradeable contracts inheriting from this base.
+    /// @custom:storage-location erc7201:kam.storage.ERC3009
+    struct ERC3009Storage {
+        /// @dev Tracks which authorizations have been used. Maps authorizer => nonce => used.
+        mapping(address => mapping(bytes32 => bool)) authorizationStates;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("kam.storage.ERC3009")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC3009_STORAGE_LOCATION =
+        0xb0d96206d1d98b55d01028b9bb50cea5a8288f39b71ea1403699b92e3c2e0200;
+
+    /// @dev Retrieves the ERC3009 storage struct from its designated namespaced slot.
+    function _getERC3009Storage() private pure returns (ERC3009Storage storage $) {
+        assembly {
+            $.slot := ERC3009_STORAGE_LOCATION
+        }
+    }
 
     /* //////////////////////////////////////////////////////////////
                            REQUIRED INTERFACE
@@ -85,7 +100,7 @@ abstract contract ERC3009 {
     /// @param nonce The unique authorization nonce.
     /// @return True if the authorization has been used, false otherwise.
     function authorizationState(address authorizer, bytes32 nonce) external view returns (bool) {
-        return _authorizationStates[authorizer][nonce];
+        return _getERC3009Storage().authorizationStates[authorizer][nonce];
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -132,13 +147,13 @@ abstract contract ERC3009 {
             revert AuthorizationExpired();
         }
 
-        if (_authorizationStates[from][nonce]) {
+        if (_getERC3009Storage().authorizationStates[from][nonce]) {
             revert AuthorizationAlreadyUsed();
         }
 
         _verifySignature(from, TRANSFER_WITH_AUTHORIZATION_TYPEHASH, to, value, validAfter, validBefore, nonce, v, r, s);
 
-        _authorizationStates[from][nonce] = true;
+        _getERC3009Storage().authorizationStates[from][nonce] = true;
         emit AuthorizationUsed(from, nonce);
 
         _transfer(from, to, value);
@@ -188,13 +203,13 @@ abstract contract ERC3009 {
             revert AuthorizationExpired();
         }
 
-        if (_authorizationStates[from][nonce]) {
+        if (_getERC3009Storage().authorizationStates[from][nonce]) {
             revert AuthorizationAlreadyUsed();
         }
 
         _verifySignature(from, RECEIVE_WITH_AUTHORIZATION_TYPEHASH, to, value, validAfter, validBefore, nonce, v, r, s);
 
-        _authorizationStates[from][nonce] = true;
+        _getERC3009Storage().authorizationStates[from][nonce] = true;
         emit AuthorizationUsed(from, nonce);
 
         _transfer(from, to, value);

@@ -5,8 +5,8 @@ import { kOFT } from "../src/kOFT.sol";
 import { kToken } from "../src/kToken.sol";
 
 import { DeploymentManager } from "./DeploymentManager.s.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { console2 } from "forge-std/Script.sol";
+import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
 /// @title DeploySpoke
 /// @notice Deploys kToken + kOFT for spoke chain deployment
@@ -38,6 +38,9 @@ contract DeploySpoke is DeploymentManager {
 
         vm.startBroadcast();
 
+        // Deploy proxy factory
+        MinimalUUPSFactory proxyFactory = new MinimalUUPSFactory();
+
         // Step 1: Deploy kToken via proxy with deployer as temporary minter
         console2.log("=== Deploying kToken (Spoke) ===");
         kToken tokenImplementation = new kToken();
@@ -53,17 +56,17 @@ contract DeploySpoke is DeploymentManager {
                 decimals
             )
         );
-        ERC1967Proxy tokenProxy = new ERC1967Proxy(address(tokenImplementation), tokenInitData);
-        token = kToken(address(tokenProxy));
+        address tokenProxy = proxyFactory.deployAndCall(address(tokenImplementation), tokenInitData);
+        token = kToken(tokenProxy);
         console2.log("kToken implementation:", address(tokenImplementation));
         console2.log("kToken proxy deployed at:", address(token));
 
         // Step 2: Deploy kOFT (Spoke uses kOFT for burning/minting)
         console2.log("=== Deploying kOFT (Spoke) ===");
         kOFT implementation = new kOFT(config.layerZero.lzEndpoint, token);
-        bytes memory data = abi.encodeWithSelector(kOFT.initialize.selector, config.roles.owner);
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        koft = kOFT(address(proxy));
+        bytes memory data = abi.encodeCall(kOFT.initialize, (config.roles.delegate, config.roles.owner));
+        address proxy = proxyFactory.deployAndCall(address(implementation), data);
+        koft = kOFT(proxy);
         console2.log("kOFT implementation:", address(implementation));
         console2.log("kOFT proxy deployed at:", address(koft));
 
@@ -92,6 +95,7 @@ contract DeploySpoke is DeploymentManager {
         console2.log("kOFT:", address(koft));
         console2.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console2.log("LayerZero EID:", config.layerZero.lzEid);
+        console2.log("Delegate:", config.roles.delegate);
         console2.log("Owner:", config.roles.owner);
         console2.log("Admin:", config.roles.admin);
         console2.log("Emergency Admin:", config.roles.emergencyAdmin);

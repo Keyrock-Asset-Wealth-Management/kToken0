@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { KTOKEN_IS_PAUSED, KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
 import { kOFT } from "../../src/kOFT.sol";
 import { kToken } from "../../src/kToken.sol";
+import { Ownable } from "../../src/vendor/solady/auth/Ownable.sol";
+import { ERC20 } from "../../src/vendor/solady/tokens/ERC20.sol";
+import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Test } from "forge-std/Test.sol";
+import { MinimalUUPSFactory } from "minimal-uups-factory/MinimalUUPSFactory.sol";
 
 /**
  * @title kOFT Unit Tests
@@ -26,10 +30,15 @@ contract kOFTUnitTest is Test {
     string constant SYMBOL = "kUSD";
     uint8 constant DECIMALS = 6;
 
+    MinimalUUPSFactory public proxyFactory;
+
     function setUp() public {
         // Mock LayerZero endpoint
         lzEndpoint = address(0x1337);
         vm.etch(lzEndpoint, "mock_endpoint");
+
+        // Deploy proxy factory
+        proxyFactory = new MinimalUUPSFactory();
 
         // Deploy kToken via proxy
         kToken tokenImplementation = new kToken();
@@ -37,14 +46,14 @@ contract kOFTUnitTest is Test {
             kToken.initialize,
             (owner, admin, emergencyAdmin, address(this), NAME, SYMBOL, DECIMALS) // temporary minter
         );
-        ERC1967Proxy tokenProxy = new ERC1967Proxy(address(tokenImplementation), tokenInitData);
-        token = kToken(address(tokenProxy));
+        address tokenProxy = proxyFactory.deployAndCall(address(tokenImplementation), tokenInitData);
+        token = kToken(tokenProxy);
 
         // Deploy kOFT
         kOFT implementation = new kOFT(lzEndpoint, token);
-        bytes memory data = abi.encodeWithSelector(kOFT.initialize.selector, owner);
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        oft = kOFT(address(proxy));
+        bytes memory data = abi.encodeCall(kOFT.initialize, (owner, owner));
+        address proxy = proxyFactory.deployAndCall(address(implementation), data);
+        oft = kOFT(proxy);
 
         // Grant OFT minter role
         vm.prank(admin);
@@ -64,18 +73,24 @@ contract kOFTUnitTest is Test {
     }
 
     function test_Initialize_CannotReinitialize() public {
-        vm.expectRevert();
-        oft.initialize(owner);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        oft.initialize(owner, owner);
     }
 
     function test_Constructor_RevertsForZeroEndpoint() public {
-        vm.expectRevert();
+        // kOFT constructor checks `lzEndpoint_ == address(0)` after the parent constructor
+        // (which reads kToken_.decimals()) succeeds, and reverts with the contract-defined
+        // ZeroAddress() selector.
+        vm.expectRevert(kOFT.ZeroAddress.selector);
         new kOFT(address(0), token);
     }
 
     function test_Constructor_RevertsForZeroToken() public {
+        // kToken_ == address(0) makes `kToken_.decimals()` (in the parent constructor's
+        // initializer list) call into a non-contract address. Solidity reverts the call
+        // with empty data because the returned uint8 cannot be decoded.
         kToken zeroToken = kToken(address(0));
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         new kOFT(lzEndpoint, zeroToken);
     }
 
@@ -116,7 +131,7 @@ contract kOFTUnitTest is Test {
     }
 
     function test_Debit_RevertsForInsufficientBalance() public {
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientBalance.selector);
         vm.prank(address(oft));
         token.crosschainBurn(user1, 1000e6);
     }
@@ -212,7 +227,9 @@ contract kOFTUnitTest is Test {
         uint32 dstEid = 110;
         bytes32 peer = bytes32(uint256(uint160(address(0x9999))));
 
-        vm.expectRevert();
+        // kOFT inherits OFTCoreUpgradeable -> OZ's OwnableUpgradeable, whose error is
+        // OwnableUnauthorizedAccount(address) (different from Solady's Unauthorized()).
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user1));
         vm.prank(user1);
         oft.setPeer(dstEid, peer);
     }
@@ -261,7 +278,7 @@ contract kOFTUnitTest is Test {
     }
 
     function test_NonOFT_CannotMint() public {
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.crosschainMint(user1, 1000e6);
     }
@@ -270,7 +287,7 @@ contract kOFTUnitTest is Test {
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(user1);
         token.crosschainBurn(user1, 500e6);
     }
@@ -283,7 +300,7 @@ contract kOFTUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
     }
@@ -295,7 +312,7 @@ contract kOFTUnitTest is Test {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_IS_PAUSED));
         vm.prank(address(oft));
         token.crosschainBurn(user1, 500e6);
     }
@@ -401,7 +418,7 @@ contract kOFTUnitTest is Test {
         vm.prank(admin);
         token.revokeMinterRole(address(oft));
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
     }
@@ -413,7 +430,7 @@ contract kOFTUnitTest is Test {
         vm.prank(admin);
         token.revokeMinterRole(address(oft));
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
         vm.prank(address(oft));
         token.crosschainBurn(user1, 500e6);
     }
@@ -453,9 +470,9 @@ contract kOFTUnitTest is Test {
     function test_MultipleOFTs_CanCoexist() public {
         // Deploy second OFT
         kOFT oft2Implementation = new kOFT(lzEndpoint, token);
-        bytes memory data2 = abi.encodeWithSelector(kOFT.initialize.selector, owner);
-        ERC1967Proxy proxy2 = new ERC1967Proxy(address(oft2Implementation), data2);
-        kOFT oft2 = kOFT(address(proxy2));
+        bytes memory data2 = abi.encodeCall(kOFT.initialize, (owner, owner));
+        address proxy2 = proxyFactory.deployAndCall(address(oft2Implementation), data2);
+        kOFT oft2 = kOFT(proxy2);
 
         vm.prank(admin);
         token.grantMinterRole(address(oft2));
@@ -469,6 +486,51 @@ contract kOFTUnitTest is Test {
 
         assertEq(token.balanceOf(user1), 1000e6);
         assertEq(token.balanceOf(user2), 2000e6);
+    }
+
+    /* Delegate / owner split initialization */
+
+    function test_initialize_revertsOnZeroDelegate() public {
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (address(0), address(this)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_revertsOnZeroOwner() public {
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (address(this), address(0)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_succeedsWithDistinctDelegateAndOwner() public {
+        address delegate = makeAddr("delegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFT freshOFT = kOFT(proxy);
+        assertEq(freshOFT.owner(), ownerAddr);
+    }
+
+    function test_setDelegate_onlyOwnerCanRotate() public {
+        address delegate = makeAddr("delegate");
+        address newDelegate = makeAddr("newDelegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFT freshOFT = kOFT(proxy);
+
+        // Non-owner cannot rotate delegate
+        vm.prank(delegate);
+        vm.expectRevert();
+        freshOFT.setDelegate(newDelegate);
+
+        // Owner can rotate delegate
+        vm.prank(ownerAddr);
+        freshOFT.setDelegate(newDelegate);
     }
 
     function test_Burn_ExactBalance() public {
