@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { kToken } from "../../src/kToken.sol";
 import {
     KTOKEN_ACCOUNT_FROZEN,
+    KTOKEN_CANNOT_FREEZE_OWNER,
     KTOKEN_IS_PAUSED,
     KTOKEN_TRANSFER_FAILED,
     KTOKEN_WRONG_ROLE,
     KTOKEN_ZERO_ADDRESS,
     KTOKEN_ZERO_AMOUNT
 } from "../../src/errors/Errors.sol";
+import { kToken } from "../../src/kToken.sol";
 import { Ownable } from "../../src/vendor/solady/auth/Ownable.sol";
 import { ERC20 } from "../../src/vendor/solady/tokens/ERC20.sol";
 import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
@@ -652,8 +653,8 @@ contract kTokenUnitTest is Test {
     }
 
     function test_CannotFreezeOwner() public {
-        // freeze() rejects owner with KTOKEN_WRONG_ROLE — owner cannot be blacklisted.
-        vm.expectRevert(bytes(KTOKEN_WRONG_ROLE));
+        // freeze() rejects owner with KTOKEN_CANNOT_FREEZE_OWNER — owner cannot be blacklisted.
+        vm.expectRevert(bytes(KTOKEN_CANNOT_FREEZE_OWNER));
         vm.prank(blacklistAdmin);
         token.freeze(owner);
     }
@@ -747,6 +748,19 @@ contract kTokenUnitTest is Test {
         token.freeze(account);
 
         assertTrue(token.isFrozen(account));
+    }
+
+    function test_FrozenAccount_CannotSelfUnfreeze() public {
+        vm.prank(blacklistAdmin);
+        token.freeze(user1);
+        assertTrue(token.isFrozen(user1));
+
+        // Attempt to self-unfreeze via renounceRoles (the old attack vector)
+        vm.prank(user1);
+        token.renounceRoles(1 << 4); // old WALLET_BLACKLISTED_ROLE value
+
+        // Account must still be frozen
+        assertTrue(token.isFrozen(user1));
     }
 
     function testFuzz_FrozenAccountCannotTransfer(address account, uint256 amount) public {
@@ -856,9 +870,8 @@ contract kTokenUnitTest is Test {
     function test_Initialize_RevertsForZeroOwner() public {
         MinimalUUPSFactory f = new MinimalUUPSFactory();
         kToken impl = new kToken();
-        bytes memory initData = abi.encodeCall(
-            kToken.initialize, (address(0), admin, emergencyAdmin, minter, NAME, SYMBOL, DECIMALS)
-        );
+        bytes memory initData =
+            abi.encodeCall(kToken.initialize, (address(0), admin, emergencyAdmin, minter, NAME, SYMBOL, DECIMALS));
         vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
         f.deployAndCall(address(impl), initData);
     }
@@ -866,9 +879,8 @@ contract kTokenUnitTest is Test {
     function test_Initialize_RevertsForZeroAdmin() public {
         MinimalUUPSFactory f = new MinimalUUPSFactory();
         kToken impl = new kToken();
-        bytes memory initData = abi.encodeCall(
-            kToken.initialize, (owner, address(0), emergencyAdmin, minter, NAME, SYMBOL, DECIMALS)
-        );
+        bytes memory initData =
+            abi.encodeCall(kToken.initialize, (owner, address(0), emergencyAdmin, minter, NAME, SYMBOL, DECIMALS));
         vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
         f.deployAndCall(address(impl), initData);
     }
@@ -876,9 +888,8 @@ contract kTokenUnitTest is Test {
     function test_Initialize_RevertsForZeroEmergencyAdmin() public {
         MinimalUUPSFactory f = new MinimalUUPSFactory();
         kToken impl = new kToken();
-        bytes memory initData = abi.encodeCall(
-            kToken.initialize, (owner, admin, address(0), minter, NAME, SYMBOL, DECIMALS)
-        );
+        bytes memory initData =
+            abi.encodeCall(kToken.initialize, (owner, admin, address(0), minter, NAME, SYMBOL, DECIMALS));
         vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
         f.deployAndCall(address(impl), initData);
     }
@@ -886,9 +897,8 @@ contract kTokenUnitTest is Test {
     function test_Initialize_RevertsForZeroMinter() public {
         MinimalUUPSFactory f = new MinimalUUPSFactory();
         kToken impl = new kToken();
-        bytes memory initData = abi.encodeCall(
-            kToken.initialize, (owner, admin, emergencyAdmin, address(0), NAME, SYMBOL, DECIMALS)
-        );
+        bytes memory initData =
+            abi.encodeCall(kToken.initialize, (owner, admin, emergencyAdmin, address(0), NAME, SYMBOL, DECIMALS));
         vm.expectRevert(bytes(KTOKEN_ZERO_ADDRESS));
         f.deployAndCall(address(impl), initData);
     }
@@ -925,9 +935,8 @@ contract kTokenUnitTest is Test {
 }
 
 // Helper that rejects ETH — used to exercise emergencyWithdraw failure branch.
-contract ETHRejector {
-    // No receive/fallback — any value-bearing call reverts.
-}
+// No receive/fallback — any value-bearing call reverts.
+contract ETHRejector { }
 
 // Minimal interfaces for testing
 interface IERC7802 {

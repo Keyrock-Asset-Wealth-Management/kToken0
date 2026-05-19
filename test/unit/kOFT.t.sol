@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { KTOKEN_IS_PAUSED, KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
 import { kOFT } from "../../src/kOFT.sol";
 import { kToken } from "../../src/kToken.sol";
-import { KTOKEN_IS_PAUSED, KTOKEN_WRONG_ROLE } from "../../src/errors/Errors.sol";
-import { Ownable } from "../../src/vendor/solady/auth/Ownable.sol";
 import { ERC20 } from "../../src/vendor/solady/tokens/ERC20.sol";
 import { Initializable } from "../../src/vendor/solady/utils/Initializable.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
@@ -51,7 +50,7 @@ contract kOFTUnitTest is Test {
 
         // Deploy kOFT
         kOFT implementation = new kOFT(lzEndpoint, token);
-        bytes memory data = abi.encodeWithSelector(kOFT.initialize.selector, owner);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (owner, owner));
         address proxy = proxyFactory.deployAndCall(address(implementation), data);
         oft = kOFT(proxy);
 
@@ -74,7 +73,7 @@ contract kOFTUnitTest is Test {
 
     function test_Initialize_CannotReinitialize() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        oft.initialize(owner);
+        oft.initialize(owner, owner);
     }
 
     function test_Constructor_RevertsForZeroEndpoint() public {
@@ -470,7 +469,7 @@ contract kOFTUnitTest is Test {
     function test_MultipleOFTs_CanCoexist() public {
         // Deploy second OFT
         kOFT oft2Implementation = new kOFT(lzEndpoint, token);
-        bytes memory data2 = abi.encodeWithSelector(kOFT.initialize.selector, owner);
+        bytes memory data2 = abi.encodeCall(kOFT.initialize, (owner, owner));
         address proxy2 = proxyFactory.deployAndCall(address(oft2Implementation), data2);
         kOFT oft2 = kOFT(proxy2);
 
@@ -486,6 +485,51 @@ contract kOFTUnitTest is Test {
 
         assertEq(token.balanceOf(user1), 1000e6);
         assertEq(token.balanceOf(user2), 2000e6);
+    }
+
+    /* Delegate / owner split initialization */
+
+    function test_initialize_revertsOnZeroDelegate() public {
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (address(0), address(this)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_revertsOnZeroOwner() public {
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (address(this), address(0)));
+        vm.expectRevert();
+        proxyFactory.deployAndCall(address(impl), data);
+    }
+
+    function test_initialize_succeedsWithDistinctDelegateAndOwner() public {
+        address delegate = makeAddr("delegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFT freshOFT = kOFT(proxy);
+        assertEq(freshOFT.owner(), ownerAddr);
+    }
+
+    function test_setDelegate_onlyOwnerCanRotate() public {
+        address delegate = makeAddr("delegate");
+        address newDelegate = makeAddr("newDelegate");
+        address ownerAddr = makeAddr("ownerAddr");
+        kOFT impl = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (delegate, ownerAddr));
+        address proxy = proxyFactory.deployAndCall(address(impl), data);
+        kOFT freshOFT = kOFT(proxy);
+
+        // Non-owner cannot rotate delegate
+        vm.prank(delegate);
+        vm.expectRevert();
+        freshOFT.setDelegate(newDelegate);
+
+        // Owner can rotate delegate
+        vm.prank(ownerAddr);
+        freshOFT.setDelegate(newDelegate);
     }
 
     function test_Burn_ExactBalance() public {

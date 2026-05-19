@@ -87,10 +87,8 @@ This will open the documentation at http://localhost:4000
 
 kToken enables seamless cross-chain token transfers using LayerZero's OFT standard:
 
-- **kOFT.mint()** - Mints tokens on destination chain after cross-chain transfer
-- **kOFT.burn()** - Burns tokens on source chain to initiate cross-chain transfer
-- **kOFTAdapter.lock()** - Locks tokens for cross-chain transfer (adapter pattern)
-- **kOFTAdapter.release()** - Releases locked tokens on destination chain
+- **kOFT** - Mints (`_credit`) and burns (`_debit`) tokens for native cross-chain transfers
+- **kOFTAdapter** - Locks (`_debit`) and releases (`_credit`) tokens for cross-chain transfers of existing tokens
 
 ### Native vs Adapter Patterns
 
@@ -112,10 +110,18 @@ The protocol supports two OFT strategies:
 
 | Role | Permissions | Contracts |
 |------|-------------|-----------|
-| OWNER | Ultimate control, upgrades | All |
-| ADMIN_ROLE | Operational management | All |
-| MINTER_ROLE | Mint/burn tokens | kToken0 |
-| PAUSER_ROLE | Emergency pause | kToken0 |
+| OWNER | UUPS upgrade authority, `setDelegate` authority | kOFT, kOFTAdapter, kToken |
+| LZ_DELEGATE | LayerZero config: libraries, DVNs, executors, enforced options, peers | kOFT, kOFTAdapter |
+| ADMIN_ROLE | Operational management (grant/revoke roles) | kToken |
+| MINTER_ROLE | Mint/burn tokens | kToken |
+| EMERGENCY_ADMIN_ROLE | Emergency pause and withdraw | kToken |
+| BLACKLIST_ADMIN_ROLE | Freeze/unfreeze accounts | kToken |
+
+`kOFT` and `kOFTAdapter` separate the LayerZero delegate from the contract
+owner. The delegate controls cross-chain messaging infrastructure; the owner
+controls upgrades and delegate rotation. Operators MAY use the same address
+for both (paste into the `delegate` and `owner` fields of the network config),
+but keeping them distinct is recommended for defense in depth.
 
 ### Deployment
 
@@ -130,13 +136,18 @@ forge script script/DeployHub.s.sol --rpc-url $RPC_URL --broadcast --verify --ac
 forge script script/DeploySpoke.s.sol --rpc-url $RPC_URL --broadcast --verify --account myKeystoreName --sender <accountAddress>
 ```
 
-**Required Environment Variables:**
+**Required network config (`deployments/config/<network>.json`):**
 
-- `OWNER`: Contract owner address
-- `ADMIN`: Admin role address  
-- `MINTER`: Minter role address
-- `LZ_ENDPOINT`: LayerZero endpoint address
-- `KTOKEN_CONTRACT`: Deployed kToken0 contract address
+- `roles.owner`: Contract owner — UUPS upgrade authority + `setDelegate`
+- `roles.delegate`: LayerZero delegate — messaging infra config
+- `roles.admin`: Admin role address
+- `roles.emergencyAdmin`: Emergency admin address
+- `layerZero.lzEndpoint`: LayerZero endpoint address
+- `layerZero.lzEid`: LayerZero endpoint ID
+- `existingKToken` (optional): Address of existing kToken contract to reuse
+
+All role addresses must be non-zero; the deploy scripts revert at validation
+if any are missing.
 
 ## Safety
 

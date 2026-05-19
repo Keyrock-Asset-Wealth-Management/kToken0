@@ -41,6 +41,7 @@ abstract contract DeploymentManager is Script {
         address owner;
         address admin;
         address emergencyAdmin;
+        address delegate;
     }
 
     struct LayerZeroConfig {
@@ -142,6 +143,7 @@ abstract contract DeploymentManager is Script {
         config.roles.owner = json.readAddress(".roles.owner");
         config.roles.admin = json.readAddress(".roles.admin");
         config.roles.emergencyAdmin = json.readAddress(".roles.emergencyAdmin");
+        config.roles.delegate = json.readAddress(".roles.delegate");
 
         // Parse LayerZero config
         config.layerZero.lzEndpoint = json.readAddress(".layerZero.lzEndpoint");
@@ -374,6 +376,7 @@ abstract contract DeploymentManager is Script {
         require(config.roles.owner != address(0), "Missing owner address");
         require(config.roles.admin != address(0), "Missing admin address");
         require(config.roles.emergencyAdmin != address(0), "Missing emergencyAdmin address");
+        require(config.roles.delegate != address(0), "Missing delegate address");
         require(config.layerZero.lzEndpoint != address(0), "Missing LayerZero endpoint address");
         require(config.layerZero.lzEid != 0, "Missing LayerZero EID");
     }
@@ -402,6 +405,7 @@ abstract contract DeploymentManager is Script {
         console.log("Owner:", config.roles.owner);
         console.log("Admin:", config.roles.admin);
         console.log("Emergency Admin:", config.roles.emergencyAdmin);
+        console.log("Delegate:", config.roles.delegate);
         console.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console.log("LayerZero EID:", config.layerZero.lzEid);
         if (config.existingKToken != address(0)) {

@@ -64,7 +64,7 @@ contract DeploySpoke is DeploymentManager {
         // Step 2: Deploy kOFT (Spoke uses kOFT for burning/minting)
         console2.log("=== Deploying kOFT (Spoke) ===");
         kOFT implementation = new kOFT(config.layerZero.lzEndpoint, token);
-        bytes memory data = abi.encodeWithSelector(kOFT.initialize.selector, config.roles.owner);
+        bytes memory data = abi.encodeCall(kOFT.initialize, (config.roles.delegate, config.roles.owner));
         address proxy = proxyFactory.deployAndCall(address(implementation), data);
         koft = kOFT(proxy);
         console2.log("kOFT implementation:", address(implementation));
@@ -95,6 +95,7 @@ contract DeploySpoke is DeploymentManager {
         console2.log("kOFT:", address(koft));
         console2.log("LayerZero Endpoint:", config.layerZero.lzEndpoint);
         console2.log("LayerZero EID:", config.layerZero.lzEid);
+        console2.log("Delegate:", config.roles.delegate);
         console2.log("Owner:", config.roles.owner);
         console2.log("Admin:", config.roles.admin);
         console2.log("Emergency Admin:", config.roles.emergencyAdmin);

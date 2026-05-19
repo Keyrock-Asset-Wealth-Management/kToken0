@@ -10,7 +10,7 @@ This document provides comprehensive interface documentation for all contracts i
 
 1. [kToken (Mainnet)](#1-ktoken-mainnet)
 2. [kOFTAdapter (Mainnet)](#2-koftadapter-mainnet)
-3. [kToken0 (Satellite Chains)](#3-ktoken0-satellite-chains)
+3. [kToken (Satellite Chains)](#3-ktoken0-satellite-chains)
 4. [kOFT (Satellite Chains)](#4-koft-satellite-chains)
 5. [IERC7802 Interface](#5-ierc7802-interface)
 
@@ -249,9 +249,9 @@ Sets the pause state (emergency use).
 
 ### Freeze/Blacklist Functions
 
-#### `freezeAccount(address account)`
+#### `freeze(address account)`
 ```solidity
-function freezeAccount(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
+function freeze(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
 ```
 Freezes an account, blocking all transfers to and from it (USDC-style compliance).
 
@@ -269,9 +269,9 @@ Freezes an account, blocking all transfers to and from it (USDC-style compliance
 
 ---
 
-#### `unfreezeAccount(address account)`
+#### `unfreeze(address account)`
 ```solidity
-function unfreezeAccount(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
+function unfreeze(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
 ```
 Unfreezes an account, restoring transfer capability.
 
@@ -494,7 +494,7 @@ Sets enforced options for specific routes.
 
 ---
 
-## 3. kToken0 (Satellite Chains)
+## 3. kToken (Satellite Chains)
 
 Cross-chain enabled ERC-20 token with native mint/burn capabilities on satellite chains.
 
@@ -502,7 +502,7 @@ Cross-chain enabled ERC-20 token with native mint/burn capabilities on satellite
 
 #### `name()`, `symbol()`, `decimals()`, `totalSupply()`, `balanceOf()`, `transfer()`, `approve()`, `transferFrom()`, `allowance()`
 
-See [kToken Standard ERC-20 Functions](#standard-erc-20-functions) - kToken0 implements the same interface.
+See [kToken Standard ERC-20 Functions](#standard-erc-20-functions) - kToken implements the same interface.
 
 ---
 
@@ -595,7 +595,7 @@ Grants minter role (typically to kOFT contract).
 **Usage Example:**
 ```solidity
 // After deploying kOFT, grant it minter role
-kToken0.grantMinterRole(address(kOFT));
+kToken.grantMinterRole(address(kOFT));
 ```
 
 ---
@@ -703,9 +703,9 @@ Emergency recovery of accidentally sent tokens.
 
 ### Freeze/Blacklist Functions
 
-#### `freezeAccount(address account)`
+#### `freeze(address account)`
 ```solidity
-function freezeAccount(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
+function freeze(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
 ```
 Freezes an account, blocking all transfers to and from it.
 
@@ -724,14 +724,14 @@ Freezes an account, blocking all transfers to and from it.
 **Usage Example:**
 ```solidity
 // Freeze a suspicious account
-kToken0.freezeAccount(suspiciousAddress);
+kToken.freeze(suspiciousAddress);
 ```
 
 ---
 
-#### `unfreezeAccount(address account)`
+#### `unfreeze(address account)`
 ```solidity
-function unfreezeAccount(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
+function unfreeze(address account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
 ```
 Unfreezes an account, restoring transfer capability.
 
@@ -746,7 +746,7 @@ Unfreezes an account, restoring transfer capability.
 **Usage Example:**
 ```solidity
 // Unfreeze an account after resolution
-kToken0.unfreezeAccount(resolvedAddress);
+kToken.unfreeze(resolvedAddress);
 ```
 
 ---
@@ -765,7 +765,7 @@ Checks if an account is frozen.
 
 **Usage Example:**
 ```solidity
-if (kToken0.isFrozen(userAddress)) {
+if (kToken.isFrozen(userAddress)) {
     // Handle frozen account case
 }
 ```
@@ -786,7 +786,7 @@ Grants blacklist admin role to an address.
 **Usage Example:**
 ```solidity
 // Grant blacklist admin role to compliance team
-kToken0.grantBlacklistAdminRole(complianceTeamAddress);
+kToken.grantBlacklistAdminRole(complianceTeamAddress);
 ```
 
 ---
@@ -884,10 +884,10 @@ Quotes the fee for a cross-chain send operation.
 ```solidity
 function token() external view returns (address)
 ```
-Returns the address of kToken0.
+Returns the address of kToken.
 
 **Returns:**
-- `address`: kToken0 contract address
+- `address`: kToken contract address
 
 ---
 
@@ -965,7 +965,7 @@ Sets enforced options for specific routes.
 
 ## 5. IERC7802 Interface
 
-Standard interface for cross-chain token operations implemented by kToken0.
+Standard interface for cross-chain token operations implemented by kToken.
 
 ### Functions
 

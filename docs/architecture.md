@@ -29,7 +29,7 @@ The kOFT (kToken Omnichain Fungible Token) system is a LayerZero-based cross-cha
 │      Chain B (Satellite)        │  │      Chain C (Satellite)        │
 │                                 │  │                                 │
 │  ┌──────────────┐  ┌─────────┐  │  │  ┌──────────────┐  ┌─────────┐  │
-│  │   kToken0    │◄─│  kOFT   │◄-┼──┼─►│   kToken0    │◄─│  kOFT   │  │
+│  │   kToken    │◄─│  kOFT   │◄-┼──┼─►│   kToken    │◄─│  kOFT   │  │
 │  │ (ERC-20 +    │  │ (Burn & │  │  │  │ (ERC-20 +    │  │ (Burn & │  │
 │  │  ERC-7802)   │  │  Mint)  │  │  │  │  ERC-7802)   │  │  Mint)  │  │
 │  └──────────────┘  └─────────┘  │  │  └──────────────┘  └─────────┘  │
@@ -72,8 +72,8 @@ The kOFT (kToken Omnichain Fungible Token) system is a LayerZero-based cross-cha
 
 **Architecture Pattern**: **Lock-and-Release**
 
-- **Outbound (Mainnet → Satellite)**: Locks kToken in adapter, mints kToken0 on destination
-- **Inbound (Satellite → Mainnet)**: Burns kToken0 on source, releases locked kToken on mainnet
+- **Outbound (Mainnet → Satellite)**: Locks kToken in adapter, mints kToken on destination
+- **Inbound (Satellite → Mainnet)**: Burns kToken on source, releases locked kToken on mainnet
 
 **Key Components**:
 
@@ -90,11 +90,17 @@ constructor(address _token, address _lzEndpoint)
 #### Initialization
 
 ```solidity
-function initialize(address _delegate) external initializer
+function initialize(address _delegate, address _owner) external initializer
 ```
 
-- Sets the delegate (admin) with ownership rights
-- One-time initialization after deployment
+- `_delegate`: LayerZero delegate — configures send/receive libraries, DVNs,
+  executor options, enforced options, and trusted peers. Can be rotated later
+  via `setDelegate` (owner-gated).
+- `_owner`: Contract owner — holds UUPS upgrade authority and `setDelegate`
+  authority. Separating delegate from owner lets LayerZero infrastructure
+  management and contract upgrades be held by distinct keys.
+- Both addresses must be non-zero; reverts with `ZeroAddress()` otherwise.
+- One-time initialization after deployment.
 
 #### Internal Mechanics
 
@@ -112,7 +118,7 @@ function initialize(address _delegate) external initializer
 - Manages cross-chain fee calculations
 - Coordinates with endpoint for security
 
-### 3. kToken0 (Satellite Chains Only)
+### 3. kToken (Satellite Chains Only)
 
 **Purpose**: Cross-chain enabled ERC-20 token with native burn/mint capabilities
 
@@ -138,8 +144,8 @@ function crosschainBurn(address _from, uint256 _amount) external nonReentrant on
 **Freeze/Blacklist Functions** (USDC-style compliance):
 
 ```solidity
-function freezeAccount(address _account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
-function unfreezeAccount(address _account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
+function freeze(address _account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
+function unfreeze(address _account) external onlyRoles(BLACKLIST_ADMIN_ROLE)
 function isFrozen(address _account) external view returns (bool)
 ```
 
@@ -160,22 +166,37 @@ The freeze mechanism blocks all token movements (transfers, mints, burns) for fr
 
 **Architecture Pattern**: **Burn-and-Mint**
 
-- **Outbound**: Burns kToken0 on source satellite chain
-- **Inbound**: Mints kToken0 on destination satellite chain
-- **Can also communicate with mainnet** via kOFTAdapter (burns kToken0, adapter releases locked kToken)
+- **Outbound**: Burns kToken on source satellite chain
+- **Inbound**: Mints kToken on destination satellite chain
+- **Can also communicate with mainnet** via kOFTAdapter (burns kToken, adapter releases locked kToken)
 
 **Key Components**:
 
 #### Constructor
 
 ```solidity
-constructor(address lzEndpoint_, kToken0 kToken0_)
+constructor(address lzEndpoint_, kToken token0_)
 ```
 
-- Stores immutable reference to kToken0
+- Stores immutable reference to kToken
 - Sets up LayerZero endpoint connection
-- Inherits token decimals from kToken0
+- Inherits token decimals from kToken
 - Disables initializers for upgrade safety
+
+#### Initialization
+
+```solidity
+function initialize(address _delegate, address _owner) external initializer
+```
+
+- `_delegate`: LayerZero delegate — configures send/receive libraries, DVNs,
+  executor options, enforced options, and trusted peers. Can be rotated later
+  via `setDelegate` (owner-gated).
+- `_owner`: Contract owner — holds UUPS upgrade authority and `setDelegate`
+  authority. Separating delegate from owner lets LayerZero infrastructure
+  management and contract upgrades be held by distinct keys.
+- Both addresses must be non-zero; reverts with `ZeroAddress()` otherwise.
+- One-time initialization after deployment.
 
 #### Core Internal Functions
 
@@ -212,7 +233,7 @@ function _credit(
 
 #### View Functions
 
-**`token()`**: Returns kToken0 address (OFT standard compliance)
+**`token()`**: Returns kToken address (OFT standard compliance)
 
 **`approvalRequired()`**: Returns `false` (no approval needed, kOFT has MINTER_ROLE)
 
@@ -257,7 +278,7 @@ kOFT (Satellite Chain)
     ├─► 8. Calls token0.crosschainMint(recipient, amount)
     │
     ▼
-kToken0 (Satellite Chain)
+kToken (Satellite Chain)
     │
     └─► 9. Mints tokens to recipient (NEW SUPPLY on satellite)
 ```
@@ -283,7 +304,7 @@ kOFT (Satellite Chain)
     ├─► 3. Calls token0.crosschainBurn(user, amount)
     │
     ▼
-kToken0 (Satellite Chain)
+kToken (Satellite Chain)
     │
     ├─► 4. Burns tokens from user (DESTROYED on satellite)
     │
@@ -331,7 +352,7 @@ kOFT (Chain A)
     ├─► 3. Calls token0.crosschainBurn(user, amount)
     │
     ▼
-kToken0 (Chain A)
+kToken (Chain A)
     │
     ├─► 4. Burns tokens from user (DESTROYED)
     │
@@ -348,7 +369,7 @@ kOFT (Chain B)
     ├─► 7. Calls token0.crosschainMint(recipient, amount)
     │
     ▼
-kToken0 (Chain B)
+kToken (Chain B)
     │
     └─► 8. Mints tokens to recipient (CREATED)
 ```
@@ -366,9 +387,13 @@ kToken0 (Chain B)
 #### Mainnet:
 
 ```
-Owner
+Owner (UUPS upgrade + setDelegate authority)
     │
-    └─► kOFTAdapter (initialized with delegate)
+    └─► kOFTAdapter
+            │  initialized with (delegate, owner) — two distinct keys
+            │
+            ├─► LayerZero Delegate (cross-chain messaging config: libs,
+            │   DVNs, executors; rotatable via setDelegate)
             │
             └─► Has approval to transfer kToken from users
 ```
@@ -378,10 +403,10 @@ Owner
 ```
 Owner (kRegistry/Governance)
     │
-    ├─► Can grant/revoke ADMIN_ROLE on kToken0
+    ├─► Can grant/revoke ADMIN_ROLE on kToken
     │
     ▼
-ADMIN_ROLE (kToken0)
+ADMIN_ROLE (kToken)
     │
     ├─► Can grant/revoke EMERGENCY_ADMIN_ROLE
     ├─► Can grant/revoke MINTER_ROLE
@@ -390,8 +415,8 @@ ADMIN_ROLE (kToken0)
     ▼
 EMERGENCY_ADMIN_ROLE    MINTER_ROLE (kOFT)    BLACKLIST_ADMIN_ROLE
     │                        │                      │
-    ├─► Emergency pause      ├─► crosschainMint()   ├─► freezeAccount()
-    ├─► Emergency withdraw   └─► crosschainBurn()   └─► unfreezeAccount()
+    ├─► Emergency pause      ├─► crosschainMint()   ├─► freeze()
+    ├─► Emergency withdraw   └─► crosschainBurn()   └─► unfreeze()
     └─► Protocol safety ops
 ```
 
@@ -405,9 +430,9 @@ EMERGENCY_ADMIN_ROLE    MINTER_ROLE (kOFT)    BLACKLIST_ADMIN_ROLE
 4. **Upgrade Safety**: Initializer disabled after first use
 5. **Peer Validation**: Only accepts messages from trusted remote OFTs
 
-#### Satellite Chains (kOFT + kToken0):
+#### Satellite Chains (kOFT + kToken):
 
-1. **Immutable References**: kOFT holds immutable reference to kToken0
+1. **Immutable References**: kOFT holds immutable reference to kToken
 2. **Role Segregation**: Only kOFT can mint/burn (MINTER_ROLE)
 3. **Reentrancy Protection**: All crosschain functions protected
 4. **Pause Mechanism**: Emergency circuit breaker for all operations
@@ -445,13 +470,13 @@ The system maintains critical supply invariants:
 INVARIANT 1: Global Conservation
 Total Supply on Mainnet = 
     Locked in kOFTAdapter + 
-    Sum(All kToken0 supplies on satellite chains)
+    Sum(All kToken supplies on satellite chains)
 
 INVARIANT 2: Mainnet Supply
 kToken.totalSupply() = constant (unless protocol mints/burns)
 
 INVARIANT 3: Satellite Supply
-Each kToken0.totalSupply() fluctuates with cross-chain transfers
+Each kToken.totalSupply() fluctuates with cross-chain transfers
 
 INVARIANT 4: Locked Balance
 kOFTAdapter balance = 
@@ -468,22 +493,24 @@ kOFTAdapter balance =
 ```
 1. kToken already exists (original protocol token)
 2. Deploy kOFTAdapter(kToken address, mainnet LZ endpoint)
-3. Initialize kOFTAdapter with delegate address
+3. Initialize kOFTAdapter with (delegate, owner) — two distinct addresses
+   from deployments/config/<network>.json (roles.delegate, roles.owner)
 4. Users must approve kOFTAdapter to spend kToken
 ```
 
 #### Phase 2: Satellite Chain Deployment (for each chain)
 
 ```
-1. Deploy kToken0(owner, admin, emergencyAdmin, address(0), name, symbol, decimals)
+1. Deploy kToken(owner, admin, emergencyAdmin, address(0), name, symbol, decimals)
    - Note: Pass address(0) for kOFT initially
 
-2. Deploy kOFT(satellite LZ endpoint, kToken0 address)
+2. Deploy kOFT(satellite LZ endpoint, kToken address)
 
-3. Initialize kOFT with delegate address
+3. Initialize kOFT with (delegate, owner) — two distinct addresses
+   from deployments/config/<network>.json (roles.delegate, roles.owner)
 
 4. Grant MINTER_ROLE to kOFT:
-   kToken0.grantMinterRole(kOFT address)
+   kToken.grantMinterRole(kOFT address)
 
 5. Configure LayerZero peers on kOFT:
    - Set trusted remote for mainnet kOFTAdapter
@@ -526,7 +553,7 @@ kOFTAdapter balance =
     ┌─────▼─────┐       ┌─────▼─────┐       ┌─────▼─────┐
     │ Arbitrum  │       │ Optimism  │       │ Polygon   │
     │           │       │           │       │           │
-    │ kToken0   │◄─────►│ kToken0   │◄─────►│ kToken0   │
+    │ kToken   │◄─────►│ kToken   │◄─────►│ kToken   │
     │ kOFT      │       │ kOFT      │       │ kOFT      │
     └───────────┘       └───────────┘       └───────────┘
 ```
@@ -541,7 +568,7 @@ kOFTAdapter balance =
 
 **Standard**: [ERC-7802 - Crosschain Token Interface](https://github.com/ethereum/ERCs/blob/master/ERCS/erc-7802.md)
 
-**Implementation** (kToken0 only):
+**Implementation** (kToken only):
 
 ```solidity
 interface IERC7802 {
@@ -557,7 +584,7 @@ interface IERC7802 {
 
 - Mainnet kToken is legacy and doesn't need this interface
 - kOFTAdapter handles cross-chain ops without modifying kToken
-- Satellite kToken0s are purpose-built with ERC-7802 from the start
+- Satellite kTokens are purpose-built with ERC-7802 from the start
 
 **Benefits**:
 
@@ -579,7 +606,7 @@ interface IERC7802 {
    - Check adapter balance increases
 
 2. **Satellite → Mainnet**:
-   - Send kToken0 from satellite to mainnet
+   - Send kToken from satellite to mainnet
    - Verify burn on satellite
    - Verify release from adapter on mainnet
    - Check adapter balance decreases
@@ -614,7 +641,7 @@ interface IERC7802 {
 #### Security Tests:
 
 1. **Access Control**:
-   - Unauthorized mint/burn attempts on kToken0
+   - Unauthorized mint/burn attempts on kToken
    - Unauthorized adapter operations
    - Role management operations
 
@@ -651,6 +678,6 @@ interface IERC7802 {
 The kOFT architecture employs a sophisticated **hybrid approach** that optimally leverages the strengths of different LayerZero patterns:
 
 - **Mainnet**: Uses **kOFTAdapter** with lock-and-release to preserve the original kToken while enabling cross-chain functionality
-- **Satellites**: Use **kOFT + kToken0** with burn-and-mint for efficient, purpose-built cross-chain transfers
+- **Satellites**: Use **kOFT + kToken** with burn-and-mint for efficient, purpose-built cross-chain transfers
 
 This design maintains the protocol's core 1:1 backing guarantees while enabling seamless multi-chain operations. The mainnet remains the canonical source of truth with locked tokens, while satellite chains provide flexible, gas-efficient cross-chain transfers through native burn/mint capabilities. The implementation of ERC-7802 on satellite chains ensures standardized cross-chain semantics and future interoperability.
