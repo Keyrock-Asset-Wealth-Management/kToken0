@@ -3,13 +3,13 @@ src = "src"
 out = "out"
 libs = ["lib", "dependencies"]
 gas_reports = ['*']
-solc_version = "0.8.30"
+solc_version = "0.8.34"
 optimizer = true
 optimizer_runs = 7777
 via_ir=true
 
 [profile.deployment]
-solc_version = "0.8.30"
+solc_version = "0.8.34"
 optimizer = true
 optimizer_runs = 7777
 via_ir=true
