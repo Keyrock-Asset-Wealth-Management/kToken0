@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CC0-1.0
-pragma solidity 0.8.30;
+pragma solidity 0.8.34;
 
 /// copied from https://github.com/ethereum/ERCs/blob/master/ERCS/erc-7802.md reference implementation
 /// @title IERC7802

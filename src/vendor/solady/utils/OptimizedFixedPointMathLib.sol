@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.34;
 
 /// @notice Arithmetic library with operations for fixed-point numbers.
 /// @author Originally by Solady (https://github.com/vectorized/solady/blob/main/src/utils/FixedPointMathLib.sol)
@@ -8,17 +8,17 @@ pragma solidity 0.8.30;
 /// We have extracted only the necessary fixed-point math functionality to optimize contract size.
 /// Original code by Solady, modified for size optimization.
 library OptimizedFixedPointMathLib {
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                       CUSTOM ERRORS                        */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    /* ´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /* CUSTOM ERRORS */
+    /* .•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev The full precision multiply-divide operation failed, either due
     /// to the result being larger than 256 bits, or a division by a zero.
     error FullMulDivFailed();
 
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                  GENERAL NUMBER UTILITIES                  */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    /* ´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /* GENERAL NUMBER UTILITIES */
+    /* .•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev Calculates `floor(x * y / d)` with full precision.
     /// Throws if result overflows a uint256 or when `d` is zero.
@@ -40,7 +40,7 @@ library OptimizedFixedPointMathLib {
                     let mm := mulmod(x, y, not(0))
                     let p1 := sub(mm, add(z, lt(mm, z))) // Upper 256 bits of `x * y`.
 
-                    /*------------------- 512 by 256 division --------------------*/
+                    /* ------------------- 512 by 256 division --------------------*/
 
                     // Make division exact by subtracting the remainder from `[p1 p0]`.
                     let r := mulmod(x, y, d) // Compute remainder using mulmod.
@@ -85,6 +85,13 @@ library OptimizedFixedPointMathLib {
     function abs(int256 x) internal pure returns (uint256 z) {
         unchecked {
             z = (uint256(x) + uint256(x >> 255)) ^ uint256(x >> 255);
+        }
+    }
+
+    function zeroFloorSub(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            z := mul(gt(x, y), sub(x, y))
         }
     }
 }
